@@ -1,5 +1,5 @@
-Object.prototype.pipe = (fx, ...args) => fx(this, ...args);
-Function.prototype.compose = (fx) => (...args) => fx(this(...args));
+Object.prototype.pipe = function(fx, ...args) { return fx(this, ...args); }
+Function.prototype.compose = function(fx) { return function(...args) { fx(this(...args)); } }
 Function.prototype.curry = function (...args) {
   const f = this;
   const curried = (...args) => args.length >= f.length
@@ -8,26 +8,33 @@ Function.prototype.curry = function (...args) {
   return curried.apply(f, args);
 }
 
+const match = (expression, pattern) => expression(pattern);
+
 // Maybe Monad
+// Usage:
+//    const maybe = Maybe.Just(5)
+//        .pipe(Maybe.bind(x => Maybe.Just(x + 1)))
+//        .pipe(Maybe.map(x => x + 1))
+//        .pipe(Maybe.value);
 var Maybe = Maybe || {};
 (function (global) {
   const _ = Maybe;
-  _.Just = function (value) {
-    this.value = value;
-  }
-  _.Just.prototype.bind = function (transform) {
-    return transform(this.value);
-  }
-  _.Just.prototype.toString = function () {
-    return 'Just(' + this.value + ')';
-  }
-  _.Nothing = function () {
-    this.value = null;
-  }
-  _.Nothing.prototype.bind = function () {
-    return this;
-  }
-  _.Nothing.prototype.toString = function () {
-    return 'Nothing';
-  }
+  _.Just = value => _ => _.Just(value);         // 'T => 'U => Maybe<'T>
+  _.Nothing = () => _ => _.Nothing();           // 'T => 'U => Maybe<'T>
+  _.value = maybe => match(maybe, {             // Maybe<'T> => 'T
+    Just: value => value,
+    Nothing: () => null,
+  });
+  _.bind = binder => maybe => match(maybe, {     // ('T => Maybe<'U>) => Maybe<'T> => Maybe<'U>
+    Just: value => binder(value),
+    Nothing: () => maybe,
+  });
+  _.map = mapper => maybe => match(maybe, {     // Maybe<'T> => ('T => 'U) => Maybe<'U>
+    Just: value =>  {
+      let v = mapper(value);
+      return v ? _.Just(v) : _.Nothing();
+    },
+    Nothing: () => maybe,
+  });
+
 }(this));
