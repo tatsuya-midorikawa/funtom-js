@@ -19,6 +19,7 @@ const match = (expression, pattern) => expression(pattern);
 var Maybe = Maybe || {};
 (function (global) {
   const _ = Maybe;
+  // Maybe Patterns : Just, Nothing
   _.Just = value => _ => _.Just(value);         // 'T -> 'U -> Maybe<'T>
   _.Nothing = () => _ => _.Nothing();           // unit -> 'U -> Maybe<'T>
 
