@@ -87,17 +87,34 @@ var IO = IO || {};
   const _ = IO;
   // IO Patterns : IO
   _.IO = action => _ => _.IO(action);         // (() -> 'T) -> _ -> IO<'T>
-
-  // 'T -> IO<'T>
-  _.pure = value => _ => _.IO(() => value);     
+  _.Pure = value => _ => _.Pure(() => value);   // 'T -> _ -> IO<'T>
 
   // ('T -> IO<'U>) -> IO<'T> -> IO<'U>
   _.bind = binder => io => match(io, {     
-    IO: fn => binder(fn()),
+    IO: fn => binder(fn()),  
+    Pure: fn => binder(fn()),
   });
 
   // ('T -> 'U) -> IO<'T> -> IO<'U>
   _.map = mapper => io => match(io, {
     IO: fn => _.IO(() => mapper(fn())),
+    Pure: fn => _.Pure(mapper(fn())),
   });
+
+  // IO<'T> -> 'T
+  _.run = io => match(io, {
+    IO: fn => fn(),
+    Pure: fn => fn(),
+  });
+
+  _.console = {
+    log: message => _.IO(() => console.log(message)), // 'T -> IO<'T>
+    error: message => _.IO(() => console.error(message)), // 'T -> IO<'T>
+    warn: message => _.IO(() => console.warn(message)), // 'T -> IO<'T>
+    info: message => _.IO(() => console.info(message)), // 'T -> IO<'T>
+  }
+
+  _.datetime = {
+    now: () => _.IO(() => new Date()), // unit -> IO<Date>
+  }
 }(this));
