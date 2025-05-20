@@ -1,5 +1,5 @@
-Object.prototype.pipe = function(fx, ...args) { return fx(this, ...args); }
-Function.prototype.compose = function(fx) { return function(...args) { fx(this(...args)); } }
+Object.prototype.pipe = function(fn, ...args) { return fn(this, ...args); }
+Function.prototype.compose = function(fn) { return function(...args) { fn(this(...args)); } }
 Function.prototype.curry = function (...args) {
   const f = this;
   const curried = (...args) => args.length >= f.length
@@ -80,4 +80,24 @@ var Maybe = Maybe || {};
     Nothing: () => [],
   });
 
+}(this));
+
+var IO = IO || {};
+(function (global) {
+  const _ = IO;
+  // IO Patterns : IO
+  _.IO = action => _ => _.IO(action);         // (() -> 'T) -> _ -> IO<'T>
+
+  // 'T -> IO<'T>
+  _.pure = value => _ => _.IO(() => value);     
+
+  // ('T -> IO<'U>) -> IO<'T> -> IO<'U>
+  _.bind = binder => io => match(io, {     
+    IO: fn => binder(fn()),
+  });
+
+  // ('T -> 'U) -> IO<'T> -> IO<'U>
+  _.map = mapper => io => match(io, {
+    IO: fn => _.IO(() => mapper(fn())),
+  });
 }(this));
