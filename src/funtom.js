@@ -114,7 +114,7 @@ var IO = IO || {};
     info: message => _.IO(() => console.info(message)), // 'T -> IO<'T>
   }
 
-  _.datetime = {
+  _.Date = {
     now: () => _.IO(() => new Date()), // unit -> IO<Date>
   }
 }(this));
