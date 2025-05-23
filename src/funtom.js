@@ -64,62 +64,62 @@ const match = (obj, pattern) => {
 //        .pipe(Maybe.map(x => x + 1))
 //        .pipe(Maybe.get);
 class Maybe {
-  static Just = value => new Just(value);
-  static Nothing = () => new Nothing();
+  static just = value => new Just(value);
+  static nothing = () => new Nothing();
 
-  // ('T -> Maybe<'U>) -> Maybe<'T> -> Maybe<'U>
+  // bind :: (a -> Maybe b) -> Maybe a -> Maybe b
   static bind = binder => maybe => match(maybe, {
     Just: v => binder(v),
     Nothing: () => maybe,
   });
-  // 'T -> Maybe<'T> -> bool
+  // contains :: a -> Maybe a -> bool
   static contains = value => maybe => match(maybe, {
     Just: v => v === value,
     Nothing: () => false,
   });
-  // Maybe<'T> -> Maybe<'T> -> bool
+  // equals :: Maybe a -> Maybe a -> bool
   static equals = lhs => rhs => match(lhs, {
     Just: v1 => match(rhs, { Just: v2 => v1 === v2, Nothing: () => false, }),
     Nothing: () => match(rhs, { Just: _ => false, Nothing: () => true, }),
   });
-  // ('T -> bool) -> Maybe<'T> -> bool
+  // exists :: (a -> bool) -> Maybe a -> bool
   static exists = predicate => maybe => match(maybe, {
     Just: v => predicate(v),
     Nothing: () => false,
   });
-  // ('T -> bool) -> Maybe<'T> -> Maybe<'T>
+  // filter :: (a -> bool) -> Maybe a -> Maybe a
   static filter = predicate => maybe => match(maybe, {
     Just: value => predicate(value) ? maybe : _.Nothing(),
     Nothing: () => maybe,
   });
-  // ('State -> 'T -> 'State) -> 'State -> Maybe<'T> -> 'State
+  // fold :: (state -> a -> state) -> state -> Maybe a -> state
   static fold = folder => state => maybe => match(maybe, {
     Just: value => folder(state, value),
     Nothing: () => state,
   });
-  // 'T -> Maybe<'T>
+  // fromNullable :: a -> Maybe a
   static fromNullable = value => value != null 
-    ? Maybe.Just(value) 
-    : Maybe.Nothing();
-  // Maybe<'T> -> 'T
+    ? Maybe.just(value) 
+    : Maybe.nothing();
+  // get :: Maybe a -> a | null
   static get = maybe => match(maybe, {
     Just: value => value,
     Nothing: () => null,
   });
-  // 'T -> Maybe<'T> -> 'T
+  // getOrElse :: a -> Maybe a -> a
   static getOrElse = defaultValue => maybe => match(maybe, {
     Just: value => value,
     Nothing: () => defaultValue,
   });
-  // Maybe<'T> -> ('T -> 'U) -> Maybe<'U>
+  // map :: Maybe a -> (a -> b) -> Maybe a
   static map = mapper => maybe => match(maybe, {
     Just: value => {
       let v = mapper(value);
-      return v ? Maybe.Just(v) : Maybe.Nothing();
+      return v ? Maybe.just(v) : Maybe.nothing();
     },
     Nothing: () => maybe,
   });
-  // Maybe<'T> -> 'T[]
+  // toArray :: Maybe a -> a[]
   static toArray = maybe => match(maybe, {
     Just: value => [value],
     Nothing: () => [],
@@ -144,39 +144,32 @@ class Nothing extends Maybe {
   isNothing = () => true; 
 }
 
-var IO = IO || {};
-(function (global) {
-  const _ = IO;
-  // IO Patterns : IO
-  _.IO = action => _ => _.IO(action);         // (() -> 'T) -> _ -> IO<'T>
-  _.Pure = value => _ => _.Pure(() => value);   // 'T -> _ -> IO<'T>
 
-  // ('T -> IO<'U>) -> IO<'T> -> IO<'U>
-  _.bind = binder => io => match(io, {
-    IO: fn => binder(fn()),
-    Pure: fn => binder(fn()),
-  });
-
-  // ('T -> 'U) -> IO<'T> -> IO<'U>
-  _.map = mapper => io => match(io, {
-    IO: fn => _.IO(() => mapper(fn())),
-    Pure: fn => _.Pure(mapper(fn())),
-  });
-
-  // IO<'T> -> 'T
-  _.run = io => match(io, {
-    IO: fn => fn(),
-    Pure: fn => fn(),
-  });
-
-  _.console = {
-    log: message => _.IO(() => console.log(message)), // 'T -> IO<'T>
-    error: message => _.IO(() => console.error(message)), // 'T -> IO<'T>
-    warn: message => _.IO(() => console.warn(message)), // 'T -> IO<'T>
-    info: message => _.IO(() => console.info(message)), // 'T -> IO<'T>
+class IO {
+  constructor(effect) {
+    if (typeof effect !== 'function') {
+      throw new Error('IO expects a function');
+    }
+    this.effect = effect;
   }
 
-  _.Date = {
-    now: () => _.IO(() => new Date()), // unit -> IO<Date>
+  // pure :: a -> IO a
+  static pure = value => new IO(() => value);
+  // of :: (() -> a) -> IO a
+  static of = effect => new IO(effect);
+
+  // bind :: (a -> IO b) -> IO a -> IO b
+  static bind = binder => io => new IO(() => binder(io.effect()));
+  // map :: (a -> b) -> IO a -> IO b
+  static map = mapper => io => new IO(() => mapper(io.effect()));
+  // run :: IO a -> a
+  static run = io => io.effect();
+
+  static console = {
+    log: (msg, ...params) => new IO(() => console.log(msg, ...params)),
+    error: (msg, ...params) => new IO(() => console.error(msg, ...params)),
+    warn: (msg, ...params) => new IO(() => console.warn(msg, ...params)),
+    info: (msg, ...params) => new IO(() => console.info(msg, ...params)),
+    table: (data, properties) => new IO(() => console.table(data, ...properties)),
   }
-}(this));
+}
