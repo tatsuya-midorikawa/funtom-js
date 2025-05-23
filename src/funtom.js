@@ -1,5 +1,5 @@
-Object.prototype.pipe = function(fn, ...args) { return fn(this, ...args); }
-Function.prototype.compose = function(fn) { return function(...args) { fn(this(...args)); } }
+Object.prototype.pipe = function (fn, ...args) { return fn(this, ...args); }
+Function.prototype.compose = function (fn) { return function (...args) { fn(this(...args)); } }
 Function.prototype.curry = function (...args) {
   const f = this;
   const curried = (...args) => args.length >= f.length
@@ -8,79 +8,141 @@ Function.prototype.curry = function (...args) {
   return curried.apply(f, args);
 }
 
-const match = (expression, pattern) => expression(pattern);
+const nameof = obj => obj?.constructor.name ?? '';
+
+// Pattern Matching
+//   This is a simple pattern matching function that allows you to match against the name of the class.
+//   When performing pattern matching, you need to define a method with the same name as the type. For example, in the case of the Just class, you must define a method called Just.
+// Usage:
+//   class Just {
+//      constructor(value) {
+//        this.value = value;
+//      }
+//      Just = _ => _.Just(this.value);   // Need to use this to avoid recursion
+//   }
+//
+//   class Nothing {
+//      Nothing = _ => _.Nothing();
+//   }
+//
+//   let just = new Just(5);
+//   let nothing = new Nothing();
+//
+//   // Output: Just: 5
+//   match(just, {
+//     Just: v => console.log(`Just: ${v}`),
+//     Nothing: () => console.log('Nothing'),
+//     _ : () => console.log('Unknown'),
+//   });
+//
+//   // Output: Nothing
+//   match(nothing, {
+//     Just: v => console.log(`Just: ${v}`),
+//     Nothing: () => console.log('Nothing'),
+//     _ : () => console.log('Unknown'),
+//   });
+// 
+//   // Output: Unknown
+//   match({ name: 100 }, {
+//     Just: v => console.log(`Just: ${v}`),
+//     Nothing: () => console.log('Nothing'),
+//     _ : () => console.log('Unknown'),
+//   });
+const match = (obj, pattern) => {
+  const name = nameof(obj);
+  return obj && obj[name] && pattern[name]
+    ? obj[name](pattern)
+    : pattern['_']
+      ? pattern['_']()
+      : obj;
+}
 
 // Maybe Monad
 // Usage:
 //    const maybe = Maybe.Just(5)
 //        .pipe(Maybe.bind(x => Maybe.Just(x + 1)))
 //        .pipe(Maybe.map(x => x + 1))
-//        .pipe(Maybe.value);
-var Maybe = Maybe || {};
-(function (global) {
-  const _ = Maybe;
-  // Maybe Patterns : Just, Nothing
-  _.Just = value => _ => _.Just(value);         // 'T -> 'U -> Maybe<'T>
-  _.Nothing = () => _ => _.Nothing();           // unit -> 'U -> Maybe<'T>
+//        .pipe(Maybe.get);
+class Maybe {
+  static Just = value => new Just(value);
+  static Nothing = () => new Nothing();
 
   // ('T -> Maybe<'U>) -> Maybe<'T> -> Maybe<'U>
-  _.bind = binder => maybe => match(maybe, {     
-    Just: value => binder(value),
+  static bind = binder => maybe => match(maybe, {
+    Just: v => binder(v),
     Nothing: () => maybe,
   });
-
   // 'T -> Maybe<'T> -> bool
-  _.contains = value => maybe => match(maybe, { 
+  static contains = value => maybe => match(maybe, {
     Just: v => v === value,
     Nothing: () => false,
   });
-
   // Maybe<'T> -> Maybe<'T> -> bool
-  _.equals = lhs => rhs => match(lhs, {
+  static equals = lhs => rhs => match(lhs, {
     Just: v1 => match(rhs, { Just: v2 => v1 === v2, Nothing: () => false, }),
     Nothing: () => match(rhs, { Just: _ => false, Nothing: () => true, }),
   });
-
   // ('T -> bool) -> Maybe<'T> -> bool
-  _.exists = predicate => maybe => match(maybe, { 
-    Just: value => predicate(value),
+  static exists = predicate => maybe => match(maybe, {
+    Just: v => predicate(v),
     Nothing: () => false,
   });
-  
   // ('T -> bool) -> Maybe<'T> -> Maybe<'T>
-  _.filter = predicate => maybe => match(maybe, { 
+  static filter = predicate => maybe => match(maybe, {
     Just: value => predicate(value) ? maybe : _.Nothing(),
     Nothing: () => maybe,
   });
-
-  // Maybe<'T> -> ('T -> 'U) -> Maybe<'U>
-  _.map = mapper => maybe => match(maybe, {     
-    Just: value =>  {
-      let v = mapper(value);
-      return v ? _.Just(v) : _.Nothing();
-    },
-    Nothing: () => maybe,
-  });
-
   // ('State -> 'T -> 'State) -> 'State -> Maybe<'T> -> 'State
-  _.fold = folder => state => maybe => match(maybe, { 
+  static fold = folder => state => maybe => match(maybe, {
     Just: value => folder(state, value),
     Nothing: () => state,
   });
-
+  // 'T -> Maybe<'T>
+  static fromNullable = value => value != null 
+    ? Maybe.Just(value) 
+    : Maybe.Nothing();
   // Maybe<'T> -> 'T
-  _.get = maybe => match(maybe, {
+  static get = maybe => match(maybe, {
     Just: value => value,
     Nothing: () => null,
   });
-
+  // 'T -> Maybe<'T> -> 'T
+  static getOrElse = defaultValue => maybe => match(maybe, {
+    Just: value => value,
+    Nothing: () => defaultValue,
+  });
+  // Maybe<'T> -> ('T -> 'U) -> Maybe<'U>
+  static map = mapper => maybe => match(maybe, {
+    Just: value => {
+      let v = mapper(value);
+      return v ? Maybe.Just(v) : Maybe.Nothing();
+    },
+    Nothing: () => maybe,
+  });
   // Maybe<'T> -> 'T[]
-  _.toArray = maybe => match(maybe, {
+  static toArray = maybe => match(maybe, {
     Just: value => [value],
     Nothing: () => [],
   });
+  
+  isJust = () => false;
+  isNothing = () => false; 
+}
 
-}(this));
+class Just extends Maybe {
+  constructor (value) {
+    super();
+    this.value = value;
+  }
+
+  Just = _ => _.Just(this.value);
+  isJust = () => true;
+}
+
+class Nothing extends Maybe {
+  Nothing = _ =>  _.Nothing();
+  isNothing = () => true; 
+}
 
 var IO = IO || {};
 (function (global) {
@@ -90,8 +152,8 @@ var IO = IO || {};
   _.Pure = value => _ => _.Pure(() => value);   // 'T -> _ -> IO<'T>
 
   // ('T -> IO<'U>) -> IO<'T> -> IO<'U>
-  _.bind = binder => io => match(io, {     
-    IO: fn => binder(fn()),  
+  _.bind = binder => io => match(io, {
+    IO: fn => binder(fn()),
     Pure: fn => binder(fn()),
   });
 
