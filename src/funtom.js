@@ -144,7 +144,12 @@ class Nothing extends Maybe {
   isNothing = () => true; 
 }
 
-
+// IO Monad
+// Usage:
+//    const io = IO.of(() => 5)
+//        .pipe(IO.bind(x => IO.of(() => x + 1)))
+//        .pipe(IO.map(x => x + 1))
+//        .pipe(IO.run);
 class IO {
   constructor(effect) {
     if (typeof effect !== 'function') {
@@ -152,6 +157,8 @@ class IO {
     }
     this.effect = effect;
   }
+
+  IO = _ => _.IO(this.effect);
 
   // pure :: a -> IO a
   static pure = value => new IO(() => value);
@@ -163,7 +170,7 @@ class IO {
   // map :: (a -> b) -> IO a -> IO b
   static map = mapper => io => new IO(() => mapper(io.effect()));
   // run :: IO a -> a
-  static run = io => io.effect();
+  static run = io => match(io, { IO: effect => IO.run(effect()), _ : () => io });
 
   static console = {
     log: (msg, ...params) => new IO(() => console.log(msg, ...params)),
@@ -171,5 +178,13 @@ class IO {
     warn: (msg, ...params) => new IO(() => console.warn(msg, ...params)),
     info: (msg, ...params) => new IO(() => console.info(msg, ...params)),
     table: (data, properties) => new IO(() => console.table(data, ...properties)),
+  }
+
+  static Date = {
+    now: () => new IO(() => Date.now()),
+  }
+
+  static Math = {
+    random: () => new IO(() => Math.random()),
   }
 }
