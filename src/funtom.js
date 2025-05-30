@@ -8,7 +8,7 @@ Function.prototype.curry = function (...args) {
   return curried.apply(f, args);
 }
 
-const nameof = obj => obj?.constructor.name ?? '';
+const nameof = obj => obj?.name ?? obj?.constructor.name ?? '';
 
 // Pattern Matching
 //   This is a simple pattern matching function that allows you to match against the name of the class.
@@ -170,7 +170,7 @@ class IO {
   // map :: (a -> b) -> IO a -> IO b
   static map = mapper => io => new IO(() => mapper(io.effect()));
   // run :: IO a -> a
-  static run = io => match(io, { IO: effect => IO.run(effect()), _ : () => io });
+  static run = io => match(io, { IO: effect => IO.run(effect()) });
 
   static console = {
     log: (msg, ...params) => new IO(() => console.log(msg, ...params)),
@@ -187,4 +187,24 @@ class IO {
   static Math = {
     random: () => new IO(() => Math.random()),
   }
+}
+
+
+class Observable {
+  constructor(subscribe) {
+    if (typeof subscribe !== 'function') {
+      throw new Error('Observable expects a function');
+    }
+    this.subscribe = subscribe;
+  }
+
+  Observable = _ => _.Observable(this.subscribe);
+
+  // map :: (a -> b) -> Observable a -> Observable b
+  static map = mapper => observable => new Observable(observer => {
+    return observable.subscribe(value => observer.next(mapper(value)));
+  });
+
+  // subscribe :: (a -> void) -> Observable a -> void
+  static subscribe = observer => observable => observable.subscribe(observer);
 }
